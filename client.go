@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"log"
 	"net"
+	"strings"
 )
 
 type client struct {
@@ -39,19 +42,11 @@ func (c *client) read() {
 		if n > 0 {
 			data := make([]byte, n)
 			copy(data, buf[:n])
-			if string(data) == "/quit\n" {
-				c.room.leave <- c
-				break
-			} else {
-				m := append([]byte(fmt.Sprintf("%v: ", c.name)), data...)
-				c.room.forward <- msg{
-					from: c.conn.RemoteAddr().String(),
-					data: m,
-				}
-			}
+
+			c.parseMsg(data)
 		}
 	}
-	log.Printf("%v has left the chat", c)
+	log.Printf("%v has left the chat.\n", c)
 }
 
 func (c *client) write() {
@@ -61,5 +56,54 @@ func (c *client) write() {
 		if c.conn.RemoteAddr().String() != msg.from {
 			c.conn.Write(msg.data)
 		}
+	}
+}
+
+func (c *client) sendTowrite(data []byte) {
+	c.room.forward <- msg{
+		from: c.conn.RemoteAddr().String(),
+		data: data,
+	}
+}
+
+func (c *client) sendToUser(data []byte) {
+	c.conn.Write(data)
+}
+
+func (c *client) parseMsg(m []byte) {
+	msgText, err := bufio.NewReader(bytes.NewReader(m)).ReadString('\n')
+	if err != nil {
+		return
+	}
+
+	msgText = strings.Trim(msgText, "\r\n")
+
+	args := strings.Split(msgText, " ")
+	first := strings.TrimSpace(args[0])
+
+	if first[0] == '/' {
+		c.execCmd(first, args[1:])
+	} else {
+		m = append([]byte(fmt.Sprintf("%v: ", c.name)), m...)
+		c.sendTowrite(m)
+	}
+}
+
+func (c *client) execCmd(cmd string, args []string) {
+	switch cmd {
+	case "/name":
+		b := []byte{}
+		if len(args) != 1 {
+			b = []byte("ERR : /name should have exactly one argument\n")
+		} else {
+			c.name = args[0]
+			b = []byte("Username changed to " + c.name + "\n")
+		}
+		c.sendToUser(b)
+	case "/quit":
+		c.sendTowrite([]byte(fmt.Sprintf("%v has left the chat.\n", c.name)))
+		c.room.leave <- c
+	default:
+		c.sendToUser([]byte("ERR : unknown command! /cmd to list all available commands\n"))
 	}
 }
