@@ -13,15 +13,17 @@ type client struct {
 	conn net.Conn
 	name string
 	room *room
+	srv  *server
 	send chan msg
 	exit chan struct{}
 }
 
-func newClient(conn net.Conn, room *room) *client {
+func newClient(conn net.Conn, room *room, srv *server) *client {
 	return &client{
 		conn: conn,
 		name: "anonymous",
 		room: room,
+		srv:  srv,
 		send: make(chan msg),
 		exit: make(chan struct{}),
 	}
@@ -103,6 +105,22 @@ func (c *client) execCmd(cmd string, args []string) {
 	case "/quit":
 		c.sendTowrite([]byte(fmt.Sprintf("%v has left the chat.\n", c.name)))
 		c.room.leave <- c
+	case "/users":
+		b := []byte{}
+		for m := range c.room.members {
+			b = append(b, []byte(m.name)...)
+			b = append(b, []byte("\n")...)
+		}
+		c.sendToUser(b)
+	case "/join":
+		c.sendToUser([]byte("To be implemented...\n"))
+	case "/rooms":
+		b := []byte{}
+		for r := range c.srv.rooms {
+			b = append(b, []byte(r.name)...)
+			b = append(b, []byte("\n")...)
+		}
+		c.sendToUser(b)
 	default:
 		c.sendToUser([]byte("ERR : unknown command! /cmd to list all available commands\n"))
 	}

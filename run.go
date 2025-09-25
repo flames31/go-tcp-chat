@@ -12,9 +12,10 @@ func runServer() {
 	}
 
 	log.Println("Server started on localhost:42069")
+	srv := newServer()
 
-	defaultRoom := newRoom("Default")
-	go defaultRoom.start()
+	r := newRoom("Default")
+	srv.addRoom(r)
 
 	for {
 		conn, err := l.Accept()
@@ -22,9 +23,9 @@ func runServer() {
 			errExit(err)
 		}
 
-		client := newClient(conn, defaultRoom)
+		client := newClient(conn, r, srv)
 
-		defaultRoom.join <- client
+		r.join <- client
 
 		go client.read()
 		go client.write()

@@ -16,13 +16,17 @@ type msg struct {
 }
 
 func newRoom(name string) *room {
-	return &room{
+	r := &room{
 		name:    name,
 		forward: make(chan msg),
 		join:    make(chan *client),
 		leave:   make(chan *client),
 		members: make(map[*client]bool),
 	}
+
+	go r.start()
+
+	return r
 }
 
 func (r *room) start() {
